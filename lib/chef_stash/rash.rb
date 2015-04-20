@@ -159,7 +159,7 @@ module ChefStash
           type = File.extname(name)[1..-1].downcase.to_sym
 
           header   = page.headers
-          bytes    = header['content-length'].first
+          bytes    = header['content-length'].first || 0
           modified = header['last-modified'].first
           created  = Time.now.utc.httpdate
           content  = type == :ini ? 'text/inifile' : header['content-type'].first

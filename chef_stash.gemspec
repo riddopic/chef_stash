@@ -31,7 +31,7 @@ Gem::Specification.new do |gem|
   gem.homepage    =   'https://github.com/riddopic/chef_stash'
   gem.license     =   'Apache 2.0'
 
-  gem.require_paths    = [ 'lib' ]
+  gem.require_paths    = [ 'lib', 'bin' ]
   gem.files            = `git ls-files`.split("\n")
   gem.test_files       = `git ls-files -- {spec}/*`.split("\n")
   gem.extra_rdoc_files = %w[LICENSE README.md]
