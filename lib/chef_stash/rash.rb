@@ -181,11 +181,6 @@ module ChefStash
             created:       created,
             visited:       page.visited
           } } }
-
-          seen_urls << { url => { modified: modified, created: created }}
-          seen_urls << { key => { type => {
-            modified: modified, created: created
-          } } }
         end
       end
 
