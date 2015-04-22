@@ -191,3 +191,4 @@ vendor/bundle
 vendor/cache
 Gemfile.lock
 repl.rb
+bin/rash.rb

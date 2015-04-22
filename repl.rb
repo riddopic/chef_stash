@@ -9,6 +9,127 @@ require 'securerandom'
 require 'tempfile'
 require 'open-uri'
 
+class Hash
+  # Returns a compacted copy (contains no key/value pairs having
+  # nil? values)
+  #
+  # @example
+  #     hash = { a: 100, b: nil, c: false, d: '' }
+  #     hash.compact # => { a: 100, c: false, d: '' }
+  #     hash         # => { a: 100, b: nil, c: false, d: '' }
+  #
+  # @return [Hash]
+  #
+  def compact
+    select { |_, value| !value.nil? }
+  end
+
+  # Returns a new hash with all keys converted using the block operation.
+  #
+  # @example
+  #   hash = { name: 'Tiggy', age: '15' }
+  #   hash.transform_keys{ |key| key.to_s.upcase }
+  #     # => { "AGE" => "15", "NAME" => "Tiggy" }
+  #
+  # @return [Hash]
+  #
+  # @api public
+  def transform_keys
+    enum_for(:transform_keys) unless block_given?
+    result = self.class.new
+    each_key do |key|
+      result[yield(key)] = self[key]
+    end
+    result
+  end
+
+  # Returns a new hash, recursively converting all keys by the
+  # block operation.
+  #
+  # @return [Hash]
+  #
+  def recursively_transform_keys(&block)
+    _recursively_transform_keys_in_object(self, &block)
+  end
+
+  # Returns a new hash with all keys downcased and converted
+  # to symbols.
+  #
+  # @return [Hash]
+  #
+  def normalize_keys
+    transform_keys { |key| key.downcase.to_sym rescue key }
+  end
+
+  # Returns a new Hash, recursively downcasing and converting all
+  # keys to symbols.
+  #
+  # @return [Hash]
+  #
+  def recursively_normalize_keys
+    recursively_transform_keys { |key| key.downcase.to_sym rescue key }
+  end
+
+  # Returns a new hash with all keys converted to symbols.
+  #
+  # @return [Hash]
+  #
+  def symbolize_keys
+    transform_keys { |key| key.to_sym rescue key }
+  end
+
+  # Returns a new Hash, recursively converting all keys to symbols.
+  #
+  # @return [Hash]
+  #
+  def recursively_symbolize_keys
+    recursively_transform_keys { |key| key.to_sym rescue key }
+  end
+
+  class UndefinedPathError < StandardError; end
+  # Recursively searchs a nested datastructure for a key and returns
+  # the value. If a block is provided its value will be returned if
+  # the key does not exist
+  #
+  # @example
+  #     options = { server: { location: { row: { rack: 34 } } } }
+  #     options.recursive_fetch :server, :location, :row, :rack
+  #                 # => 34
+  #     options.recursive_fetch(:non_existent_key) { 'default' }
+  #                 # => "default"
+  #
+  # @return [Hash, Array, String] value for key
+  #
+  def recursive_fetch(*args, &block)
+    args.reduce(self) do |obj, arg|
+      begin
+        arg = Integer(arg) if obj.is_a? Array
+        obj.fetch(arg)
+      rescue ArgumentError, IndexError, NoMethodError => e
+        break block.call(arg) if block
+        raise UndefinedPathError,
+          "Could not fetch path (#{args.join(' > ')}) at #{arg}", e.backtrace
+      end
+    end
+  end
+
+  private #   P R O P R I E T À   P R I V A T A   divieto di accesso
+
+  # support methods for recursively transforming nested hashes and arrays
+  def _recursively_transform_keys_in_object(object, &block)
+    case object
+    when Hash
+      object.each_with_object({}) do |(key, val), result|
+        result[yield(key)] = _recursively_transform_keys_in_object(val, &block)
+      end
+    when Array
+      object.map { |e| _recursively_transform_keys_in_object(e, &block) }
+    else
+      object
+    end
+  end
+end
+
 # Return a cleanly join URI/URL segments into a cleanly normalized URL that
 # the libraries can use when constructing URIs. URI.join is pure evil.
 #
@@ -83,7 +204,7 @@ end
 # @return [Hash, Array, String] value for key
 def stash
   require 'chef_stash' unless defined?(ChefStash)
-  @stash ||= ChefStash.new
+  @stash ||= ChefStash::DiskStore.new
 end
 
 # Returns a new inihash hash replacing :regkeys hash section, and returning

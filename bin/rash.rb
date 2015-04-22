@@ -36,13 +36,29 @@ def rash(url = 'http://winini.mudbox.dev', path = 'packages_3.0')
   @rash ||= ChefStash::Rash.new(url, path)
 end
 
+def checksum_file(file, digest)
+  if File.exist?(file)
+    File.open(file, 'rb') { |f| checksum_io(f, digest) }
+  else
+    false
+  end
+end
+
+def checksum_io(io, digest)
+  while chunk = io.read(1024 * 8)
+    digest.update(chunk)
+  end
+  digest.hexdigest
+end
+
+results = []
 url     = 'http://winini.mudbox.dev/'
 path    = 'packages_3.0'
-options = { threads: 20, depth_limit: 3, discard_page_bodies: true }
-results = []
 regex   = /#{path}\/\w+.(\w+.(ini|zip)|sha256.txt)$/i
-seen    = []
+threads = ChefStash::OS.windows? ? 4 : 20
+options = { threads: threads, depth_limit: 3, discard_page_bodies: true }
 
+results = []
 Anemone.crawl(url, options) do |anemone|
   anemone.on_pages_like(regex) do |page|
     url  = page.url.to_s
@@ -50,30 +66,45 @@ Anemone.crawl(url, options) do |anemone|
     key  = File.basename(name, '.*').downcase.to_sym
     type = File.extname(name)[1..-1].downcase.to_sym
 
-    header   = page.headers
-    bytes    = header['content-length'].first
-    modified = header['last-modified'].first
-    created  = Time.now.utc.httpdate
-    content  = type == :ini ? 'text/inifile' : header['content-type'].first
-    size     = ChefStash::FileSize.new(bytes).to_size(:mb).to_s
-
-    result = { key => { type => {
-      code:          ChefStash::Response.code(page.code),
-      depth:         page.depth,
-      size:          size,
-      key:           key,
-      md5:           Digest::MD5.hexdigest(page.body.to_s),
-      modified:      modified,
-      name:          name,
-      referer:       page.referer.to_s,
-      response_time: page.response_time.time_humanize,
-      sha256:        OpenSSL::Digest::SHA256.new(page.body).to_s,
-      content_type:  content,
-      url:           url,
-      created:       created,
-      visited:       page.visited
-    } } }
-
-    ap result
+    results << { key => { type => { page: page } } }
+    ap results
   end
 end
+
+# Anemone.crawl(url, options) do |anemone|
+#   anemone.on_pages_like(regex) do |page|
+#     url  = page.url.to_s
+#     name = File.basename(url)
+#     key  = File.basename(name, '.*').downcase.to_sym
+#     type = File.extname(name)[1..-1].downcase.to_sym
+#
+#     header   = page.headers
+#     bytes    = header['content-length'].first || 0
+#     modified = header['last-modified'].first
+#     created  = Time.now.utc.httpdate
+#     content  = type == :ini ? 'text/inifile' : header['content-type'].first
+#     code     = ChefStash::Response.code(page.code)
+#     md5      = Digest::MD5.hexdigest(page.body.to_s)
+#     sha256   = OpenSSL::Digest::SHA256.new(page.body).to_s
+#     size     = ChefStash::FileSize.new(bytes).to_size(:mb).to_s
+#
+#     results  = { key => { type => {
+#       code:     code,
+#       content:  content,
+#       created:  created,
+#       depth:    page.depth,
+#       key:      key,
+#       md5:      md5,
+#       modified: modified,
+#       name:     name,
+#       referer:  page.referer.to_s,
+#       response: page.response_time.time_humanize,
+#       sha256:   sha256,
+#       size:     size,
+#       url:      url,
+#       visited:  page.visited
+#     } } }
+#
+#     ap results
+#   end
+# end

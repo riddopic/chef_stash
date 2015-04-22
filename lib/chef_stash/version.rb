@@ -26,7 +26,7 @@ module ChefStash
   module Version
     MAJOR = 0
     MINOR = 1
-    PATCH = 3
+    PATCH = 4
 
     # Returns a version string by joining MAJOR, MINOR, and PATCH with '.'
     #

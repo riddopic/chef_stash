@@ -36,7 +36,6 @@ module ChefStash
     #
     def initialize(store = file_store)
       @store = store
-      ensure_store_directory
     end
 
     # Retrieves a value from the cache, if available and not expired, or yields
@@ -141,10 +140,11 @@ module ChefStash
 
     def write_cache_file(key, content)
       mode = OS.windows? ? 'wb' : 'w+'
-      f = File.open(cache_file(key), mode)
-      f.flock(File::LOCK_EX)
-      f.write(content)
-      f.close
+      file = File.open(cache_file(key), mode)
+      ensure_enclosing_dir(File.dirname file)
+      file.flock(File::LOCK_EX)
+      file.write(content)
+      file.close
       content
     end
 
@@ -162,8 +162,8 @@ module ChefStash
       File.mtime(cache_file(key))
     end
 
-    def ensure_store_directory
-      Dir.mkdir(store) unless File.directory?(store)
+    def ensure_enclosing_dir(dir)
+      FileUtils.mkdir_p(file_store) unless File.directory?(dir)
     end
   end
 end

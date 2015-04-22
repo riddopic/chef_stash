@@ -98,6 +98,24 @@ module ChefStash
 
     private #   P R O P R I E T À   P R I V A T A   Vietato L'accesso
 
+    def fetch_raw(url, path)
+      regex   = /#{path}\/\w+.(\w+.(ini|zip)|sha256.txt)$/i
+      threads = ChefStash::OS.windows? ? 4 : 20
+      options = { threads: threads, depth_limit: 3, discard_page_bodies: true }
+      results = []
+
+      Anemone.crawl(url, options) do |anemone|
+        anemone.on_pages_like(regex) do |page|
+          name = File.basename(url)
+          key  = File.basename(name, '.*').downcase.to_sym
+          type = File.extname(name)[1..-1].downcase.to_sym
+
+          results << { key => { type => { page: page } } }
+          results.reduce({}, :recursive_merge)
+        end
+      end
+    end
+
     # Loads a Chef stash hash of cache stash of hash data into the hash stash
     # key/value stach hash cache object Chef store, or create a new one.
     #
@@ -105,36 +123,36 @@ module ChefStash
     #   rash[:av]
     #     => {
     #       :ini => {
-    #                :code => "200 OK",
-    #               :depth => 3,
-    #                :size => "0.0 MB",
-    #                 :key => :av,
-    #                 :md5 => "336d9da322febc949eb22ae3f47d293b",
-    #            :modified => "Mon, 16 Feb 2015 07:13:23 GMT",
-    #                :name => "AV.ini",
-    #             :referer => "http://winini.mudbox.dev/packages_3.0/AV/",
-    #       :response_time => "1 seconds 0 milliseconds",
-    #              :sha256 => "905425e1a33b0662297181c3031066d630f8241880c7001",
-    #        :content_type => "text/inifile",
-    #                 :url => "http://winini.mudbox.dev/packages_3.0/AV/AV.ini",
-    #               :utime => "Mon, 20 Apr 2015 06:33:07 GMT",
-    #             :visited => nil
+    #             :code => "200 OK",
+    #          :content => "text/inifile",
+    #          :created => "Tue, 21 Apr 2015 00:24:44 GMT",
+    #            :depth => 3,
+    #              :key => :av,
+    #              :md5 => "336d9da322febc949eb22ae3f47d293b",
+    #         :modified => "Mon, 16 Feb 2015 07:13:23 GMT",
+    #             :name => "AV.ini",
+    #          :referer => "http://winini.mudbox.dev/packages_3.0/AV/",
+    #         :response => "1 seconds",
+    #           :sha256 => "905425e1a33b0662297181c3031066d7e6757cb3796c730f82",
+    #             :size => "0.0 MB",
+    #              :url => "http://winini.mudbox.dev/packages_3.0/AV/AV.ini",
+    #          :visited => nil
     #       },
     #       :zip => {
-    #                :code => "200 OK",
-    #               :depth => 3,
-    #                :size => "32.6 MB",
-    #                 :key => :av,
-    #                 :md5 => "2488ceb74eb6cb5fae463c88b806ebff",
-    #            :modified => "Mon, 16 Feb 2015 07:13:29 GMT",
-    #                :name => "AV.zip",
-    #             :referer => "http://winini.mudbox.dev/packages_3.0/AV/",
-    #       :response_time => "1 seconds 0 milliseconds",
-    #              :sha256 => "f3f14ac64263fc7b091d150a1bc0867d38af57466574587",
-    #        :content_type => "application/zip",
-    #                 :url => "http://winini.mudbox.dev/packages_3.0/AV/AV.zip",
-    #               :utime => "Mon, 20 Apr 2015 06:33:08 GMT",
-    #             :visited => nil
+    #             :code => "200 OK",
+    #          :content => "application/zip",
+    #          :created => "Tue, 21 Apr 2015 00:24:45 GMT",
+    #            :depth => 3,
+    #              :key => :av,
+    #              :md5 => "2488ceb74eb6cb5fae463c88b806ebff",
+    #         :modified => "Mon, 16 Feb 2015 07:13:29 GMT",
+    #             :name => "AV.ini",
+    #          :referer => "http://winini.mudbox.dev/packages_3.0/AV/",
+    #         :response => "1 seconds",
+    #           :sha256 => "f3f14ac64263fc7b091d150a1bc0867d38a8604e88f56f5746",
+    #             :size => "32.6 MB",
+    #              :url => "http://winini.mudbox.dev/packages_3.0/AV/AV.zip",
+    #          :visited => nil
     #         }
     #     }
     #
@@ -149,42 +167,80 @@ module ChefStash
     def fetch(url, path)
       results = []
       regex   = /#{path}\/\w+.(\w+.(ini|zip)|sha256.txt)$/i
-      options = { threads: 20, depth_limit: 3, discard_page_bodies: true }
+      threads = ChefStash::OS.windows? ? 4 : 20
+      options = { threads: threads, depth_limit: 3, discard_page_bodies: true }
 
-      Anemone.crawl(url, options) do |anemone|
-        anemone.on_pages_like(regex) do |page|
-          url  = page.url.to_s
-          name = File.basename(url)
-          key  = File.basename(name, '.*').downcase.to_sym
-          type = File.extname(name)[1..-1].downcase.to_sym
+      if ChefStash::OS.windows?
+        Anemone.crawl(url, options) do |anemone|
+          anemone.on_pages_like(regex) do |page|
+            url  = page.url.to_s
+            name = File.basename(url)
+            key  = File.basename(name, '.*').downcase.to_sym
+            type = File.extname(name)[1..-1].downcase.to_sym
 
-          header   = page.headers
-          bytes    = header['content-length'].first || 0
-          modified = header['last-modified'].first
-          created  = Time.now.utc.httpdate
-          content  = type == :ini ? 'text/inifile' : header['content-type'].first
-          size     = ChefStash::FileSize.new(bytes).to_size(:mb).to_s
+            header   = page.headers
+            bytes    = header['content-length'].first
+            modified = header['last-modified'].first
+            created  = Time.now.utc.httpdate
+            content  = type == :ini ? 'text/inifile' : header['content-type'].first
+            code     = ChefStash::Response.code(page.code)
 
-          results << { key => { type => {
-            code:          ChefStash::Response.code(page.code),
-            depth:         page.depth,
-            size:          size,
-            key:           key,
-            md5:           Digest::MD5.hexdigest(page.body.to_s),
-            modified:      modified,
-            name:          name,
-            referer:       page.referer.to_s,
-            response_time: page.response_time.time_humanize,
-            sha256:        OpenSSL::Digest::SHA256.new(page.body).to_s,
-            content_type:  content,
-            url:           url,
-            created:       created,
-            visited:       page.visited
-          } } }
+            results << { key => { type => {
+              code:     code,
+              content:  content,
+              created:  created,
+              depth:    page.depth,
+              key:      key,
+              md5:      md5,
+              modified: modified,
+              name:     name,
+              referer:  page.referer.to_s,
+              url:      url,
+              visited:  page.visited
+            } } }
+          end
         end
-      end
 
-      results.reduce({}, :recursive_merge)
+        results.reduce({}, :recursive_merge)
+      else
+        Anemone.crawl(url, options) do |anemone|
+          anemone.on_pages_like(regex) do |page|
+            url  = page.url.to_s
+            name = File.basename(url)
+            key  = File.basename(name, '.*').downcase.to_sym
+            type = File.extname(name)[1..-1].downcase.to_sym
+
+            header   = page.headers
+            bytes    = header['content-length'].first
+            modified = header['last-modified'].first
+            created  = Time.now.utc.httpdate
+            content  = type == :ini ? 'text/inifile' : header['content-type'].first
+            code     = ChefStash::Response.code(page.code)
+            md5      = Digest::MD5.hexdigest(page.body.to_s)
+            sha256   = OpenSSL::Digest::SHA256.new(page.body).to_s
+            size     = ChefStash::FileSize.new(bytes).to_size(:mb).to_s
+
+            results << { key => { type => {
+              code:     code,
+              content:  content,
+              created:  created,
+              depth:    page.depth,
+              key:      key,
+              md5:      md5,
+              modified: modified,
+              name:     name,
+              referer:  page.referer.to_s,
+              response: page.response_time.time_humanize,
+              sha256:   sha256,
+              size:     size,
+              url:      url,
+              visited:  page.visited
+            } } }
+          end
+        end
+
+        results.reduce({}, :recursive_merge)
+      end
     end
   end
 end
