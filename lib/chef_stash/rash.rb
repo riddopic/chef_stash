@@ -178,25 +178,8 @@ module ChefStash
             key  = File.basename(name, '.*').downcase.to_sym
             type = File.extname(name)[1..-1].downcase.to_sym
 
-            header   = page.headers
-            bytes    = header['content-length'].first
-            modified = header['last-modified'].first
-            created  = Time.now.utc.httpdate
-            content  = type == :ini ? 'text/inifile' : header['content-type'].first
-            code     = ChefStash::Response.code(page.code)
-
             results << { key => { type => {
-              code:     code,
-              content:  content,
-              created:  created,
-              depth:    page.depth,
-              key:      key,
-              md5:      md5,
-              modified: modified,
-              name:     name,
-              referer:  page.referer.to_s,
-              url:      url,
-              visited:  page.visited
+              key:  key, name: name, type: type, url:  url
             } } }
           end
         end
