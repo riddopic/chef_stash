@@ -140,8 +140,8 @@ module ChefStash
 
     def write_cache_file(key, content)
       mode = OS.windows? ? 'wb' : 'w+'
+      ensure_enclosing_dir(File.dirname cache_file(key))
       file = File.open(cache_file(key), mode)
-      ensure_enclosing_dir(File.dirname file)
       file.flock(File::LOCK_EX)
       file.write(content)
       file.close

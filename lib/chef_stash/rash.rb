@@ -98,28 +98,25 @@ module ChefStash
 
     private #   P R O P R I E T À   P R I V A T A   Vietato L'accesso
 
-    def fetch_raw(url, path)
-      regex   = /#{path}\/\w+.(\w+.(ini|zip)|sha256.txt)$/i
-      threads = ChefStash::OS.windows? ? 4 : 20
-      options = { threads: threads, depth_limit: 3, discard_page_bodies: true }
-      results = []
-
-      Anemone.crawl(url, options) do |anemone|
-        anemone.on_pages_like(regex) do |page|
-          name = File.basename(url)
-          key  = File.basename(name, '.*').downcase.to_sym
-          type = File.extname(name)[1..-1].downcase.to_sym
-
-          results << { key => { type => { page: page } } }
-          results.reduce({}, :recursive_merge)
-        end
-      end
-    end
-
     # Loads a Chef stash hash of cache stash of hash data into the hash stash
     # key/value stach hash cache object Chef store, or create a new one.
     #
     # @example
+    #   (on Windows)
+    #   rash[:av]
+    #     => {
+    #       :ini => {
+    #              :key => :av,
+    #             :name => "AV.ini",
+    #              :url => "http://winini.mudbox.dev/packages_3.0/AV/AV.ini",
+    #       :zip => {
+    #              :key => :av,
+    #             :name => "AV.ini",
+    #              :url => "http://winini.mudbox.dev/packages_3.0/AV/AV.ini",
+    #         }
+    #     }
+    #
+    #   (on Unix/Linux/OSX)
     #   rash[:av]
     #     => {
     #       :ini => {
@@ -179,7 +176,7 @@ module ChefStash
             type = File.extname(name)[1..-1].downcase.to_sym
 
             results << { key => { type => {
-              key:  key, name: name, type: type, url:  url
+              key:  key, name: name, url:  url
             } } }
           end
         end
